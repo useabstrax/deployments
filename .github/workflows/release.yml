@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Linux amd64
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ github.sha }}
+          BUILD_DATE: ${{ github.event.head_commit.timestamp }}
+        run: |
+          GOOS=linux GOARCH=amd64 go build \
+            -ldflags="-s -w \
+              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.Version=${VERSION} \
+              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.Commit=${COMMIT::7} \
+              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.BuildDate=${BUILD_DATE}" \
+            -o dist/abstrax-deploy-linux-amd64 ./cmd/abstrax-deploy
+
+      - name: Build Linux arm64
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ github.sha }}
+          BUILD_DATE: ${{ github.event.head_commit.timestamp }}
+        run: |
+          GOOS=linux GOARCH=arm64 go build \
+            -ldflags="-s -w \
+              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.Version=${VERSION} \
+              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.Commit=${COMMIT::7} \
+              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.BuildDate=${BUILD_DATE}" \
+            -o dist/abstrax-deploy-linux-arm64 ./cmd/abstrax-deploy
+
+      - name: Package and generate manifest
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          chmod +x scripts/generate-manifest.sh
+          ./scripts/generate-manifest.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/abstrax-deploy_${{ steps.version.outputs.version }}_linux_amd64.tar.gz
+            dist/abstrax-deploy_${{ steps.version.outputs.version }}_linux_arm64.tar.gz
+            dist/abstrax-deploy_${{ steps.version.outputs.version }}_checksums.txt
+            plugin-manifest.json

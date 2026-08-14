@@ -1,0 +1,44 @@
+# Build outputs
+/bin/
+/dist/
+/abstrax-deploy
+plugin-manifest.json
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+vendor/
+
+# Coverage
+coverage.out
+coverage.html
+*.coverprofile
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+id_ed25519
+id_ed25519.pub
+
+# Logs
+*.log

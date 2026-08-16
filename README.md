@@ -37,13 +37,17 @@ Nginx PHP blocks in Abstrax already use `$realpath_root`, so flipping `current` 
 
 ```bash
 cd plugins/deploy
-make build
+go build -o bin/abstrax-deploy ./cmd/abstrax-deploy
 sudo cp bin/abstrax-deploy /usr/local/lib/abstrax/plugins/
 abstrax deploy version
 abstrax-deploy plugin metadata | jq .
 ```
 
-## Happy path
+Release builds (linux-amd64 / linux-arm64 archives + `plugin-manifest.json`) are produced by the GitHub Actions release workflow when you push a `v*` tag.
+
+## Quick start
+
+Typical flow from an existing Abstrax project to a first deploy:
 
 ```bash
 # Project already exists (infra only)
@@ -152,21 +156,12 @@ sudo abstrax deploy now example.com --yes --json-stream
 
 NDJSON progress lines (`type=progress`) then a final `type=result` line, matching Abstrax core. Use `--json` for a single result object. Do not combine `--json` and `--json-stream`.
 
-Conceptual future agent actions: `deploy.setup`, `deploy.configure`, `deploy.now`, `deploy.rollback`, `deploy.status`.
-
 ## Development
 
 ```bash
-make test
-make build
-make vet
+go test -race ./...
+go vet ./...
+go build -o bin/abstrax-deploy ./cmd/abstrax-deploy
 ```
 
-## Non-goals (v1)
-
-- No Saturn-style in-place git deploys
-- No `--migrate` from legacy trees
-- No bare git cache
-- No Apache
-- No automatic PHP-FPM / supervisor restarts
-- No web UI / TUI
+CI runs the same checks on push and pull requests. Tagged releases (`v*`) build and publish Linux binaries via `.github/workflows/release.yml`.

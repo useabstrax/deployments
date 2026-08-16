@@ -24,7 +24,7 @@ First release of the official Abstrax Deploy plugin (`abstrax-deploy` → `abstr
 - **Presets** - `laravel` (composer + migrate), `node`, `ruby`, `static`, and `none`.
 - **Git strategy** - Fresh shallow clone per release (branch/tag/SHA with deeper fetch fallback); `.git` removed after metadata is written. No bare mirror in v1.
 - **GitHub provider seam** - v1 copy and key flow are GitHub-oriented; provider interface allows other hosts later.
-- **Machine output** - `--json` and `--json-stream` (NDJSON progress + final result) for agents and scripts.
+- **Machine output** - `--json` and `--json-stream` (NDJSON progress + final result) for scripts and automation.
 - **Cross-distro support** - Debian/Ubuntu and RHEL-family; uses Abstrax project APIs rather than hard-coded nginx/PHP paths.
 - **Plugin metadata** - Protocol v1 `plugin metadata` listing all commands; `requires_abstrax >=0.1.0`.
 

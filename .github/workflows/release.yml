@@ -30,40 +30,86 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Build Linux amd64
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          COMMIT: ${{ github.sha }}
-          BUILD_DATE: ${{ github.event.head_commit.timestamp }}
-        run: |
-          GOOS=linux GOARCH=amd64 go build \
-            -ldflags="-s -w \
-              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.Version=${VERSION} \
-              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.Commit=${COMMIT::7} \
-              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.BuildDate=${BUILD_DATE}" \
-            -o dist/abstrax-deploy-linux-amd64 ./cmd/abstrax-deploy
-
-      - name: Build Linux arm64
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          COMMIT: ${{ github.sha }}
-          BUILD_DATE: ${{ github.event.head_commit.timestamp }}
-        run: |
-          GOOS=linux GOARCH=arm64 go build \
-            -ldflags="-s -w \
-              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.Version=${VERSION} \
-              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.Commit=${COMMIT::7} \
-              -X github.com/useabstrax/abstrax/plugins/deploy/internal/plugin.BuildDate=${BUILD_DATE}" \
-            -o dist/abstrax-deploy-linux-arm64 ./cmd/abstrax-deploy
-
-      - name: Package and generate manifest
+      - name: Build, package, and generate manifest
         env:
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
         run: |
-          chmod +x scripts/generate-manifest.sh
-          ./scripts/generate-manifest.sh
+          set -euo pipefail
+
+          MODULE="github.com/useabstrax/abstrax/plugins/deploy"
+          BINARY="abstrax-deploy"
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          SHORT_COMMIT="${COMMIT:0:7}"
+          LDFLAGS="-s -w -X ${MODULE}/internal/plugin.Version=${VERSION} -X ${MODULE}/internal/plugin.Commit=${SHORT_COMMIT} -X ${MODULE}/internal/plugin.BuildDate=${BUILD_DATE}"
+
+          mkdir -p dist
+
+          GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" \
+            -o "dist/${BINARY}-linux-amd64" ./cmd/abstrax-deploy
+          GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" \
+            -o "dist/${BINARY}-linux-arm64" ./cmd/abstrax-deploy
+
+          checksums_file="dist/${BINARY}_${VERSION}_checksums.txt"
+          : > "${checksums_file}"
+
+          declare -A SIZES
+          declare -A SHAS
+
+          for entry in "linux-amd64:linux_amd64" "linux-arm64:linux_arm64"; do
+            platform="${entry%%:*}"
+            archive_suffix="${entry##*:}"
+            src="dist/${BINARY}-${platform}"
+            archive="dist/${BINARY}_${VERSION}_${archive_suffix}.tar.gz"
+
+            tmpdir="$(mktemp -d)"
+            cp "${src}" "${tmpdir}/${BINARY}"
+            tar -C "${tmpdir}" -czf "${archive}" "${BINARY}"
+            rm -rf "${tmpdir}"
+
+            sha="$(sha256sum "${archive}" | awk '{print $1}')"
+            size="$(wc -c < "${src}" | tr -d ' ')"
+            SHAS["${platform}"]="${sha}"
+            SIZES["${platform}"]="${size}"
+            echo "${sha}  $(basename "${archive}")" >> "${checksums_file}"
+          done
+
+          RELEASE_BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+
+          python3 - "${VERSION}" "${RELEASE_BASE}" "${BINARY}" \
+            "${SHAS[linux-amd64]}" "${SIZES[linux-amd64]}" \
+            "${SHAS[linux-arm64]}" "${SIZES[linux-arm64]}" <<'PY'
+          import json, sys
+          version, release_base, binary, amd64_sha, amd64_size, arm64_sha, arm64_size = sys.argv[1:]
+          manifest = {
+              "name": "deploy",
+              "version": version,
+              "protocol_version": 1,
+              "requires_abstrax": ">=0.1.0",
+              "channel": "stable",
+              "publisher": "useabstrax",
+              "trust_level": "official",
+              "description": "Zero-downtime GitHub deployments for Abstrax projects",
+              "display_name": "Deploy Plugin",
+              "platforms": {
+                  "linux-amd64": {
+                      "url": f"{release_base}/{binary}_{version}_linux_amd64.tar.gz",
+                      "sha256": amd64_sha,
+                      "size": int(amd64_size),
+                  },
+                  "linux-arm64": {
+                      "url": f"{release_base}/{binary}_{version}_linux_arm64.tar.gz",
+                      "sha256": arm64_sha,
+                      "size": int(arm64_size),
+                  },
+              },
+          }
+          with open("plugin-manifest.json", "w", encoding="utf-8") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+          print("Wrote plugin-manifest.json")
+          PY
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

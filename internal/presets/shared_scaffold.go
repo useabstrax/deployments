@@ -131,5 +131,5 @@ QUEUE_CONNECTION=sync
 FILESYSTEM_DISK=local
 
 BROADCAST_CONNECTION=log
-` ) + "\n"
+`) + "\n"
 }

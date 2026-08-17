@@ -194,6 +194,7 @@ func newSetupCmd() *cobra.Command {
 					ProjectPath: proj.Path,
 					Config:      &cfg,
 					RunAsUser:   userx.RunAs(proj.User),
+					Owner:       proj.User,
 					CLIPHP:      phpCLI,
 					KnownHosts:  knownHosts,
 					Progress:    p,

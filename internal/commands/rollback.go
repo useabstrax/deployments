@@ -81,6 +81,7 @@ func newRollbackCmd() *cobra.Command {
 				DryRun:      globals.DryRun,
 				SkipHooks:   skipHooks,
 				RunAsUser:   userx.RunAs(proj.User),
+				Owner:       proj.User,
 				CLIPHP:      phpCLI,
 				Progress:    p,
 				Action:      action,

@@ -10,6 +10,7 @@ import (
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/gitx"
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/layout"
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/output"
+	"github.com/useabstrax/abstrax/plugins/deploy/internal/userx"
 )
 
 // DeployOptions controls a deploy now run.
@@ -22,6 +23,7 @@ type DeployOptions struct {
 	NoActivate  bool
 	DryRun      bool
 	RunAsUser   string
+	Owner       string // project Linux user; release tree is chowned before hooks
 	CLIPHP      string
 	KnownHosts  string
 	Now         time.Time
@@ -135,6 +137,17 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		return nil, err
 	}
 
+	// Clone/link run as root; hooks run as the project user and must be able to
+	// write into the release (e.g. composer creating vendor/).
+	if opts.Owner != "" {
+		if err := userx.ChownPath(releasePath, opts.Owner); err != nil {
+			return nil, fmt.Errorf("setting release ownership: %w", err)
+		}
+		if err := userx.ChownPath(paths.Shared, opts.Owner); err != nil {
+			return nil, fmt.Errorf("setting shared ownership: %w", err)
+		}
+	}
+
 	hookEnv := HookEnv{
 		Project:     cfg.Project,
 		ProjectPath: opts.ProjectPath,
@@ -212,6 +225,7 @@ type RollbackOptions struct {
 	DryRun      bool
 	SkipHooks   bool
 	RunAsUser   string
+	Owner       string
 	CLIPHP      string
 	Progress    output.ProgressEmitter
 	Action      string

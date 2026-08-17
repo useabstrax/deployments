@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Release ownership before hooks** - After clone and shared linking, the release (and `shared/`) are chowned to the project user before hooks run, so `composer install` and similar can create directories like `vendor/`.
+
 ## [0.1.0] - 2026-08-14
 
 First release of the official Abstrax Deploy plugin (`abstrax-deploy` → `abstrax deploy …`).

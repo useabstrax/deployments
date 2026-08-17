@@ -82,6 +82,7 @@ func newNowCmd() *cobra.Command {
 				NoActivate:  noActivate,
 				DryRun:      globals.DryRun,
 				RunAsUser:   userx.RunAs(proj.User),
+				Owner:       proj.User,
 				CLIPHP:      phpCLI,
 				KnownHosts:  knownHosts,
 				Progress:    p,
@@ -90,8 +91,6 @@ func newNowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			_ = userx.ChownPath(filepath.Join(proj.Path, "releases", result.ReleaseID), proj.User)
 
 			summary := fmt.Sprintf("Deployed release %s for %s.", result.ReleaseID, proj.Name)
 			if !result.Activated {

@@ -134,6 +134,9 @@ func newSetupCmd() *cobra.Command {
 			if err := config.Save(proj.Path, &cfg); err != nil {
 				return err
 			}
+			_ = userx.ChownPath(config.Path(proj.Path), proj.User)
+			_ = userx.ChownPath(layout.ForProject(proj.Path).Releases, proj.User)
+			_ = userx.ChownPath(layout.ForProject(proj.Path).Shared, proj.User)
 
 			docRoot := layout.DocumentRootRel(cfg.PublicDir)
 			p.Progress(action, "web_root", "Setting public-dir to "+docRoot)
@@ -164,6 +167,7 @@ func newSetupCmd() *cobra.Command {
 			if err := config.Save(proj.Path, &cfg); err != nil {
 				return err
 			}
+			_ = userx.ChownPath(config.Path(proj.Path), proj.User)
 
 			pub, _ := key.PublicKey(keyPath)
 			if !globals.JSON && !globals.JSONStream {

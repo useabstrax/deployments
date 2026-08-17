@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Laravel shared scaffold** - On setup/init/deploy, ensures `shared/storage/{app,framework,logs}/…` and a minimal `shared/.env` (generated `APP_KEY`, file session/cache drivers). Non-empty `.env` files are never overwritten.
+
 ### Fixed
 
 - **Release ownership before hooks** - After clone and shared linking, the release (and `shared/`) are chowned to the project user before hooks run, so `composer install` and similar can create directories like `vendor/`.
+- **Hook error output** - Failed hooks now include both stderr and stdout (tail), so Artisan errors are visible after Composer progress.
+- **Setup scaffold ownership** - `deploy setup` chowns `deploy.json`, `releases/`, and `shared/` to the project user.
 
 ## [0.1.0] - 2026-08-14
 

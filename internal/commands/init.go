@@ -85,6 +85,9 @@ func newInitCmd() *cobra.Command {
 			if err := config.Save(proj.Path, &cfg); err != nil {
 				return err
 			}
+			if err := presets.EnsureSharedScaffold(proj.Path, &cfg); err != nil {
+				return err
+			}
 			_ = userx.ChownPath(config.Path(proj.Path), proj.User)
 			_ = userx.ChownPath(layout.ForProject(proj.Path).Releases, proj.User)
 			_ = userx.ChownPath(layout.ForProject(proj.Path).Shared, proj.User)

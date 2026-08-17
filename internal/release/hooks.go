@@ -93,16 +93,39 @@ func runHook(ctx context.Context, hook, cwd string, env HookEnv, runAsUser strin
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = strings.TrimSpace(stdout.String())
-		}
+		out := strings.TrimSpace(stdout.String())
+		errOut := strings.TrimSpace(stderr.String())
+		msg := combineHookOutput(out, errOut)
 		if msg == "" {
 			msg = err.Error()
 		}
+		// Keep the useful tail when Composer progress dominates the buffer.
+		msg = tailLines(msg, 40)
 		return fmt.Errorf("%s", msg)
 	}
 	return nil
+}
+
+func combineHookOutput(stdout, stderr string) string {
+	switch {
+	case stdout != "" && stderr != "":
+		return stderr + "\n" + stdout
+	case stderr != "":
+		return stderr
+	default:
+		return stdout
+	}
+}
+
+func tailLines(s string, n int) string {
+	if n <= 0 || s == "" {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) <= n {
+		return s
+	}
+	return strings.Join(lines[len(lines)-n:], "\n")
 }
 
 func truncate(s string, n int) string {

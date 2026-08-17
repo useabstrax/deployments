@@ -10,6 +10,7 @@ import (
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/gitx"
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/layout"
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/output"
+	"github.com/useabstrax/abstrax/plugins/deploy/internal/presets"
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/userx"
 )
 
@@ -133,6 +134,9 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 	}
 
 	step("shared", "Linking shared paths")
+	if err := presets.EnsureSharedScaffold(opts.ProjectPath, cfg); err != nil {
+		return nil, err
+	}
 	if err := LinkShared(opts.ProjectPath, releasePath, cfg.Shared); err != nil {
 		return nil, err
 	}

@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Composer plugin hooks** - Laravel preset `after_clone` uses `abstrax composer run --project=… --path=… install …`. Setup/init/configure warn with a copyable `sudo abstrax plugin install composer && sudo abstrax composer setup` when the Composer plugin is missing.
 - **Action IDs** - Plugin metadata commands include `action` values such as `plugin.deploy.now` for Abstrax `--action` dispatch.
 
+### Changed
+
+- **Help and usage** - Usage text shows `abstrax deploy …` instead of the `abstrax-deploy` binary name.
+
 ### Fixed
 
 - **Release ownership before hooks** - After clone and shared linking, the release (and `shared/`) are chowned to the project user before hooks run, so `composer install` and similar can create directories like `vendor/`.

@@ -27,9 +27,12 @@ var globals GlobalFlags
 // NewRootCmd creates the root command for abstrax-deploy.
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "abstrax-deploy",
-		Short:         "Zero-downtime deployments for Abstrax projects",
-		Long:          "Official Abstrax Deploy plugin: releases/, current symlink, shallow clones, and hooks.",
+		Use:   plugin.PluginName,
+		Short: "Zero-downtime deployments for Abstrax projects",
+		Long:  "Official Abstrax Deploy plugin: releases/, current symlink, shallow clones, and hooks.",
+		Annotations: map[string]string{
+			cobra.CommandDisplayNameAnnotation: "abstrax " + plugin.PluginName,
+		},
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -98,15 +101,11 @@ func isUsageError(err error) bool {
 
 func guessAction(root *cobra.Command) string {
 	if root == nil {
-		return "deploy"
+		return plugin.PluginName
 	}
 	cmd, _, _ := root.Find(os.Args[1:])
-	if cmd == nil {
-		return "deploy"
+	if cmd == nil || cmd == root {
+		return plugin.PluginName
 	}
-	parts := strings.Split(cmd.CommandPath(), " ")
-	if len(parts) >= 2 {
-		return "deploy." + parts[len(parts)-1]
-	}
-	return "deploy"
+	return plugin.PluginName + "." + strings.ReplaceAll(cmd.Name(), "-", "_")
 }

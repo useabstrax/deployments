@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/useabstrax/abstrax/plugins/deploy/internal/commands"
 )
 
 func buildBinary(t *testing.T) string {
@@ -89,6 +91,45 @@ func TestUnknownCommandExitCode(t *testing.T) {
 	}
 	if ee.ExitCode() != 2 {
 		t.Fatalf("exit code = %d, want 2", ee.ExitCode())
+	}
+}
+
+func TestHelpShowsAbstraxCommand(t *testing.T) {
+	root := commands.NewRootCmd()
+	root.SetArgs([]string{"--help"})
+	var stdout bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stdout)
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := stdout.String()
+	if !strings.Contains(got, "abstrax deploy [command]") {
+		t.Fatalf("root help missing abstrax deploy usage:\n%s", got)
+	}
+	if !strings.Contains(got, `"abstrax deploy [command] --help"`) {
+		t.Fatalf("root help missing abstrax deploy help hint:\n%s", got)
+	}
+	if strings.Contains(got, "abstrax-deploy") {
+		t.Fatalf("root help still mentions binary name:\n%s", got)
+	}
+}
+
+func TestSubcommandHelpShowsAbstraxCommand(t *testing.T) {
+	root := commands.NewRootCmd()
+	root.SetArgs([]string{"setup", "--help"})
+	var stdout bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stdout)
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := stdout.String()
+	if !strings.Contains(got, "abstrax deploy setup") {
+		t.Fatalf("setup help missing abstrax deploy path:\n%s", got)
+	}
+	if strings.Contains(got, "abstrax-deploy") {
+		t.Fatalf("setup help still mentions binary name:\n%s", got)
 	}
 }
 

@@ -4,6 +4,12 @@ All notable changes to the Abstrax Deploy plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-08-19
+
+### Fixed
+
+- **Abstrax hooks as root** - Hooks that invoke `abstrax` / `abstrax-*` no longer run via `runuser` as the project user, so system-installed plugins under `/usr/local/lib/abstrax/plugins` are found. Composer still drops to the project user via `--project`. Other hooks (for example Artisan) still run as the project user.
+
 ## [0.2.0] - 2026-08-19
 
 ### Added

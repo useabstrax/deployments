@@ -67,13 +67,20 @@ func HooksFor(cfg *config.Config, phase string) ([]string, error) {
 }
 
 // RunHooks executes hook commands with bash -lc in releasePath as optional user.
+// Hooks that invoke the Abstrax CLI (abstrax …) run as root when deploy is root,
+// so system-installed plugins under /usr/local/lib/abstrax/plugins are found.
+// Those hooks should pass --project / --user so tools like Composer drop privileges.
 func RunHooks(ctx context.Context, hooks []string, releasePath string, env HookEnv, runAsUser string) error {
 	for i, hook := range hooks {
 		hook = strings.TrimSpace(hook)
 		if hook == "" {
 			continue
 		}
-		if err := runHook(ctx, hook, releasePath, env, runAsUser); err != nil {
+		user := runAsUser
+		if hookInvokesAbstrax(hook) {
+			user = ""
+		}
+		if err := runHook(ctx, hook, releasePath, env, user); err != nil {
 			return fmt.Errorf("hook %d (%s): %w", i+1, truncate(hook, 60), err)
 		}
 	}
@@ -104,6 +111,26 @@ func runHook(ctx context.Context, hook, cwd string, env HookEnv, runAsUser strin
 		return fmt.Errorf("%s", msg)
 	}
 	return nil
+}
+
+// hookInvokesAbstrax reports whether the hook shell string calls the Abstrax CLI
+// or a plugin binary (abstrax-*). Those must run with the installing user's view
+// of plugin paths (typically root → /usr/local/lib/abstrax/plugins).
+func hookInvokesAbstrax(hook string) bool {
+	for _, field := range strings.Fields(hook) {
+		// Strip simple env assignments: FOO=bar abstrax …
+		if i := strings.IndexByte(field, '='); i > 0 && !strings.Contains(field[:i], "/") {
+			continue
+		}
+		base := field
+		if j := strings.LastIndexByte(field, '/'); j >= 0 {
+			base = field[j+1:]
+		}
+		if base == "abstrax" || strings.HasPrefix(base, "abstrax-") {
+			return true
+		}
+	}
+	return false
 }
 
 func combineHookOutput(stdout, stderr string) string {

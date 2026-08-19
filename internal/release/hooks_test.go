@@ -21,11 +21,11 @@ func TestHookInvokesAbstrax(t *testing.T) {
 	cases := map[string]bool{
 		`abstrax composer run --project="$ABSTRAX_PROJECT" install`: true,
 		`/usr/bin/abstrax composer run install`:                     true,
-		`abstrax-composer run install`:                             true,
-		`FOO=1 abstrax composer run install`:                       true,
-		`$ABSTRAX_CLI_PHP artisan migrate --force`:                 false,
-		`composer install --no-dev`:                                false,
-		`npm ci && npm run build`:                                  false,
+		`abstrax-composer run install`:                              true,
+		`FOO=1 abstrax composer run install`:                        true,
+		`$ABSTRAX_CLI_PHP artisan migrate --force`:                  false,
+		`composer install --no-dev`:                                 false,
+		`npm ci && npm run build`:                                   false,
 	}
 	for hook, want := range cases {
 		if got := hookInvokesAbstrax(hook); got != want {

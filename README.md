@@ -1,14 +1,16 @@
 # Abstrax Deploy Plugin
 
-Official Abstrax CLI plugin for **zero-downtime GitHub deployments**.
+Zero-downtime GitHub deployments for Abstrax projects.
 
 Binary: `abstrax-deploy` → `abstrax deploy …`  
 Trust level: `official`  
-OS: Debian/Ubuntu and RHEL-family (Rocky/Alma/RHEL). Nginx only.
+OS: Debian/Ubuntu and RHEL-family. Nginx only.
+
+Full user docs: [useabstrax.com/docs/plugins/official/deploy](https://useabstrax.com/docs/plugins/official/deploy)
 
 ## What it does
 
-Projects created with `abstrax project add` get infrastructure (user, path, nginx, runtime). This plugin deploys **application code** into a Capistrano/Deployer-style layout:
+`abstrax project add` creates infrastructure (user, path, nginx, runtime). This plugin deploys application code into:
 
 ```text
 {project.path}/
@@ -18,55 +20,38 @@ Projects created with `abstrax project add` get infrastructure (user, path, ngin
   shared/
 ```
 
-Each `deploy now`:
+Each `deploy now` shallow-clones the repo, strips `.git`, links shared paths, runs hooks, health-checks, flips `current`, then prunes old releases. There is no in-place `git pull` and no automatic PHP-FPM or supervisor restart.
 
-1. Shallow-clones the configured repository into a new release directory
-2. Writes `.abstrax-release.json`, then **deletes `.git`** (immutable tree)
-3. Symlinks configured shared paths
-4. Runs hooks (`after_clone` → `before_activate`)
-5. Health-checks that the release and `public_dir` exist
-6. Atomically flips `current`
-7. Runs `after_activate` hooks
-8. Prunes old releases (`keep_releases`, default 5)
-
-There is **no** in-place `git pull`, no bare/mirror cache in v1, no PHP-FPM reload, and no automatic supervisor restarts. Restart services only via hooks if you need to.
-
-Nginx PHP blocks in Abstrax already use `$realpath_root`, so flipping `current` does not require reloading PHP-FPM.
-
-## Install (local)
+## Install
 
 ```bash
-cd plugins/deploy
-go build -o bin/abstrax-deploy ./cmd/abstrax-deploy
-sudo cp bin/abstrax-deploy /usr/local/lib/abstrax/plugins/
+sudo abstrax plugin install deploy
 abstrax deploy version
-abstrax-deploy plugin metadata | jq .
 ```
 
-Release builds (linux-amd64 / linux-arm64 archives + `plugin-manifest.json`) are produced by the GitHub Actions release workflow when you push a `v*` tag.
+Local build:
+
+```bash
+go build -o bin/abstrax-deploy ./cmd/abstrax-deploy
+sudo cp bin/abstrax-deploy /usr/local/lib/abstrax/plugins/
+```
+
+Tagged releases (`v*`) publish linux-amd64 / linux-arm64 archives and `plugin-manifest.json`.
 
 ## Quick start
 
-Typical flow from an existing Abstrax project to a first deploy:
-
 ```bash
-# Project already exists (infra only)
 sudo abstrax project add example.com --domains=example.com --php --public-dir=public
 
-# One-shot setup (init + key + optional first deploy)
 sudo abstrax deploy setup example.com \
   --repository=git@github.com:acme/app.git \
   --branch=main \
   --preset=laravel \
   --no-first-deploy
 
-# Add the printed public key as a GitHub Deploy Key (read-only)
-sudo abstrax deploy key example.com --show
-
-# Deploy
+abstrax deploy key example.com --show   # add as a GitHub deploy key (read-only)
 sudo abstrax deploy now example.com --yes
 
-# Inspect
 abstrax deploy status example.com
 abstrax deploy list example.com
 ```
@@ -75,12 +60,12 @@ abstrax deploy list example.com
 
 | Command | Root? | Description |
 |---------|-------|-------------|
-| `deploy setup <project>` | yes | Guided init + configure + key + optional first deploy |
-| `deploy init <project>` | yes | Scaffold dirs + `deploy.json` + set web root to `current/{public_dir}` |
+| `deploy setup <project>` | yes | Init + configure + key + optional first deploy |
+| `deploy init <project>` | yes | Scaffold dirs + `deploy.json`; set web root to `current/{public_dir}` |
 | `deploy configure <project>` | yes (writes) | Show or update config |
 | `deploy key <project>` | yes (writes) | Create/rotate deploy key; `--show` / `--fingerprint` are read-only |
 | `deploy now <project>` | yes | Full release pipeline |
-| `deploy rollback <project> [id]` | yes | Flip `current`; re-runs `after_activate` hooks |
+| `deploy rollback <project> [id]` | yes | Flip `current`; re-runs `after_activate` |
 | `deploy list <project>` | no* | List releases |
 | `deploy status <project>` | no* | Config + current release |
 | `deploy hooks <project> [phase]` | yes (writes) | List/set/append/clear hooks |
@@ -89,72 +74,22 @@ abstrax deploy list example.com
 
 Globals: `--json`, `--json-stream`, `--yes`, `--dry-run`, `--verbose`, `--quiet`, `--no-color`.
 
-There is **no** `deploy release` command.
+`--ref` is a branch, `tags/v1.0.0`, or SHA. A bare name such as `v1.2.3` is treated as a branch.
 
 ## Presets
 
-| Preset | Shared | Default hooks |
-|--------|--------|---------------|
-| `laravel` | `.env`, `storage` | `abstrax composer run --project="$ABSTRAX_PROJECT" --path="$ABSTRAX_RELEASE_PATH" install --no-dev --optimize-autoloader`; `$ABSTRAX_CLI_PHP artisan migrate --force` |
-| `node` | none | `npm ci && npm run build` (app must define a `build` script) |
-| `ruby` | none | `bundle install --deployment --without development test` |
-| `static` | none | none |
-| `none` | none | none |
+| Preset | `public_dir` | Shared | Default hooks |
+|--------|--------------|--------|---------------|
+| `laravel` | `public` | `.env`, `storage` | Composer install via `abstrax composer run`; `$ABSTRAX_CLI_PHP artisan migrate --force` |
+| `node` | `.` | none | `npm ci && npm run build` |
+| `ruby` | `.` | none | `bundle install --deployment --without development test` |
+| `static` / `none` | `.` | none | none |
 
-Laravel includes migrate. Setup/init/deploy also scaffolds Laravel `shared/storage` subdirs and a minimal `shared/.env` (generated `APP_KEY`) when missing or empty; existing non-empty `.env` files are never overwritten. Composer install goes through `abstrax composer run` (install the [Composer plugin](https://useabstrax.com/docs/plugins/official/composer) if needed: `sudo abstrax plugin install composer && sudo abstrax composer setup`). No preset restarts services. For Node/Ruby workers, add restarts to `after_activate`, for example:
+Laravel setup/init/deploy also scaffolds `shared/storage` and a minimal `shared/.env` (generated `APP_KEY`) when missing or empty. Install the [Composer plugin](https://useabstrax.com/docs/plugins/official/composer) for Laravel: `sudo abstrax plugin install composer && sudo abstrax composer setup`.
 
-```bash
-sudo abstrax deploy hooks example.com after_activate \
-  --append='abstrax project service restart example.com example-worker --yes'
-```
+Hooks that call `abstrax` run as root so plugins are found; pass `--project` / `--path` so Composer still drops to the project user. Other hooks run as the project user.
 
-## GitHub deploy keys
-
-1. `sudo abstrax deploy key <project>` creates `~/.ssh/abstrax_deploy_<project>` for the project user
-2. Print the pubkey: `abstrax deploy key <project> --show`
-3. GitHub → repository **Settings → Deploy keys → Add deploy key** (read-only is enough)
-4. `known_hosts` is updated for `github.com` automatically when the key is created
-
-Rotate with `sudo abstrax deploy key <project> --rotate --yes` and update GitHub.
-
-## Shallow clone behaviour
-
-- Branches: `git clone --depth 1 --branch <ref>`
-- Tags: shallow clone by tag name, with fetch fallback
-- SHAs: `git init` + `git fetch --depth 1` (deeper fetch if needed)
-- After metadata is written, `.git` is removed so releases are plain trees
-
-Provider seam: `provider: "github"` in v1. Other hosts can be added later without rewriting the release engine.
-
-## Debian/Ubuntu and RHEL
-
-This plugin does not hard-code distro nginx/PHP socket paths. It uses Abstrax APIs:
-
-- `abstrax project inspect <project> --json`
-- `abstrax project modify <project> --public-dir=current/{public_dir} --json`
-
-`$ABSTRAX_CLI_PHP` resolves versioned CLI binaries when possible (`php8.5` on Debian/Ubuntu, `/opt/remi/php85/root/usr/bin/php` on Remi/RHEL-family).
-
-## Hooks and environment
-
-Hooks are shell strings run with `bash -lc` as the project user when isolated. **cwd** is the release path.
-
-Injected env vars:
-
-- `ABSTRAX_PROJECT`, `ABSTRAX_PROJECT_PATH`, `ABSTRAX_RELEASE_PATH`
-- `ABSTRAX_CURRENT_PATH`, `ABSTRAX_SHARED_PATH`
-- `ABSTRAX_BRANCH`, `ABSTRAX_REF`, `ABSTRAX_RELEASE_ID`
-- `ABSTRAX_CLI_PHP` (PHP runtimes)
-
-Rollback policy: re-runs `after_activate` so user-defined restart hooks still apply.
-
-## Agent / JSON output
-
-```bash
-sudo abstrax deploy now example.com --yes --json-stream
-```
-
-NDJSON progress lines (`type=progress`) then a final `type=result` line, matching Abstrax core. Use `--json` for a single result object. Do not combine `--json` and `--json-stream`.
+No preset restarts services. Add those to `after_activate`.
 
 ## Development
 
@@ -163,5 +98,3 @@ go test -race ./...
 go vet ./...
 go build -o bin/abstrax-deploy ./cmd/abstrax-deploy
 ```
-
-CI runs the same checks on push and pull requests. Tagged releases (`v*`) build and publish Linux binaries via `.github/workflows/release.yml`.

@@ -131,6 +131,8 @@ func newSetupCmd() *cobra.Command {
 				cfg.PublicDir = publicDir
 			}
 
+			maybeWarnComposerPlugin(p, cfg.Preset)
+
 			if err := config.Save(proj.Path, &cfg); err != nil {
 				return err
 			}

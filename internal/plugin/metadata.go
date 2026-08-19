@@ -3,6 +3,7 @@ package plugin
 import (
 	"encoding/json"
 	"io"
+	"strings"
 )
 
 const (
@@ -19,6 +20,7 @@ const (
 // MetadataCommand describes a subcommand exposed by the plugin.
 type MetadataCommand struct {
 	Name        string `json:"name"`
+	Action      string `json:"action,omitempty"`
 	Description string `json:"description"`
 }
 
@@ -45,17 +47,25 @@ func DefaultMetadata() Metadata {
 		RequiresAbstrax: RequiresAbstrax,
 		Homepage:        Homepage,
 		Commands: []MetadataCommand{
-			{Name: "setup", Description: "Guided one-shot deploy setup for a project"},
-			{Name: "init", Description: "Scaffold deploy directories and deploy.json"},
-			{Name: "configure", Description: "Show or update deploy configuration"},
-			{Name: "key", Description: "Create or manage the project deploy key"},
-			{Name: "now", Description: "Deploy a new release with zero downtime"},
-			{Name: "rollback", Description: "Point current at a previous release"},
-			{Name: "list", Description: "List releases for a project"},
-			{Name: "status", Description: "Show deploy status and current release"},
-			{Name: "hooks", Description: "List or edit deploy hooks"},
-			{Name: "version", Description: "Display plugin version information"},
+			deployCommand("setup", "Guided one-shot deploy setup for a project"),
+			deployCommand("init", "Scaffold deploy directories and deploy.json"),
+			deployCommand("configure", "Show or update deploy configuration"),
+			deployCommand("key", "Create or manage the project deploy key"),
+			deployCommand("now", "Deploy a new release with zero downtime"),
+			deployCommand("rollback", "Point current at a previous release"),
+			deployCommand("list", "List releases for a project"),
+			deployCommand("status", "Show deploy status and current release"),
+			deployCommand("hooks", "List or edit deploy hooks"),
+			deployCommand("version", "Display plugin version information"),
 		},
+	}
+}
+
+func deployCommand(name, description string) MetadataCommand {
+	return MetadataCommand{
+		Name:        name,
+		Action:      "plugin." + PluginName + "." + strings.ReplaceAll(name, "-", "_"),
+		Description: description,
 	}
 }
 

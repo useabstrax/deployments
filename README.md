@@ -95,13 +95,13 @@ There is **no** `deploy release` command.
 
 | Preset | Shared | Default hooks |
 |--------|--------|---------------|
-| `laravel` | `.env`, `storage` | `composer install --no-dev --optimize-autoloader`; `$ABSTRAX_CLI_PHP artisan migrate --force` |
+| `laravel` | `.env`, `storage` | `abstrax composer run --project="$ABSTRAX_PROJECT" --path="$ABSTRAX_RELEASE_PATH" install --no-dev --optimize-autoloader`; `$ABSTRAX_CLI_PHP artisan migrate --force` |
 | `node` | none | `npm ci && npm run build` (app must define a `build` script) |
 | `ruby` | none | `bundle install --deployment --without development test` |
 | `static` | none | none |
 | `none` | none | none |
 
-Laravel includes migrate. Setup/init/deploy also scaffolds Laravel `shared/storage` subdirs and a minimal `shared/.env` (generated `APP_KEY`) when missing or empty; existing non-empty `.env` files are never overwritten. No preset restarts services. For Node/Ruby workers, add restarts to `after_activate`, for example:
+Laravel includes migrate. Setup/init/deploy also scaffolds Laravel `shared/storage` subdirs and a minimal `shared/.env` (generated `APP_KEY`) when missing or empty; existing non-empty `.env` files are never overwritten. Composer install goes through `abstrax composer run` (install the [Composer plugin](https://useabstrax.com/docs/plugins/official/composer) if needed: `sudo abstrax plugin install composer && sudo abstrax composer setup`). No preset restarts services. For Node/Ruby workers, add restarts to `after_activate`, for example:
 
 ```bash
 sudo abstrax deploy hooks example.com after_activate \

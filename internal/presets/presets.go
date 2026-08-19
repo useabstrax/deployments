@@ -32,7 +32,7 @@ func Apply(cfg *config.Config, preset string) error {
 		cfg.Preset = string(Laravel)
 		cfg.PublicDir = "public"
 		cfg.Shared = []string{".env", "storage"}
-		cfg.Hooks.AfterClone = []string{"composer install --no-dev --optimize-autoloader"}
+		cfg.Hooks.AfterClone = []string{`abstrax composer run --project="$ABSTRAX_PROJECT" --path="$ABSTRAX_RELEASE_PATH" install --no-dev --optimize-autoloader`}
 		cfg.Hooks.BeforeActivate = []string{"$ABSTRAX_CLI_PHP artisan migrate --force"}
 		cfg.Hooks.AfterActivate = []string{}
 	case Node:

@@ -36,9 +36,22 @@ func TestDefaultMetadataJSON(t *testing.T) {
 		t.Errorf("name = %v, want %q", raw["name"], plugin.PluginName)
 	}
 
-	commands, ok := raw["commands"].([]any)
-	if !ok || len(commands) < 9 {
+	if commands, ok := raw["commands"].([]any); !ok || len(commands) < 9 {
 		t.Errorf("commands = %v, want at least 9 entries", raw["commands"])
+	} else {
+		foundNow := false
+		for _, c := range commands {
+			m := c.(map[string]any)
+			if m["name"] == "now" {
+				foundNow = true
+				if m["action"] != "plugin.deploy.now" {
+					t.Errorf("now action = %v, want plugin.deploy.now", m["action"])
+				}
+			}
+		}
+		if !foundNow {
+			t.Error("missing now command")
+		}
 	}
 }
 

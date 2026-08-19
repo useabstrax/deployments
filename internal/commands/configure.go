@@ -85,6 +85,7 @@ func newConfigureCmd() *cobra.Command {
 				if err := presets.Apply(cfg, preset); err != nil {
 					return err
 				}
+				maybeWarnComposerPlugin(p, cfg.Preset)
 			}
 			if cmd.Flags().Changed("repository") {
 				prov, err := provider.Lookup(cfg.Provider)

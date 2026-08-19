@@ -81,6 +81,8 @@ func newInitCmd() *cobra.Command {
 				return fmt.Errorf("deploy.json already exists (pass --yes to overwrite)")
 			}
 
+			maybeWarnComposerPlugin(p, cfg.Preset)
+
 			p.Progress(action, "config", "Writing deploy.json")
 			if err := config.Save(proj.Path, &cfg); err != nil {
 				return err

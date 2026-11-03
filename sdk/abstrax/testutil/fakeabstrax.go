@@ -66,6 +66,37 @@ EOF
   esac
 fi
 
+if [ "$1" = "project" ] && [ "$2" = "info" ]; then
+  name="$3"
+  json="$4"
+  if [ "$json" != "--json" ]; then
+    echo "expected --json" >&2
+    exit 1
+  fi
+  case "$name" in
+    exists)
+      cat <<'EOF'
+{"status":"success","action":"project.info","data":{"name":"example","public_dir":"public"}}
+EOF
+      exit 0
+      ;;
+    deployish)
+      cat <<'EOF'
+{"status":"success","action":"project.info","data":{"name":"deployish","public_dir":"current/public"}}
+EOF
+      exit 0
+      ;;
+    missing)
+      echo 'project "missing" not found' >&2
+      exit 1
+      ;;
+    *)
+      echo "unknown project $name" >&2
+      exit 1
+      ;;
+  esac
+fi
+
 if [ "$1" = "project" ] && [ "$2" = "modify" ]; then
   name="$3"
   # Accept --public-dir=... and --json in any order after name

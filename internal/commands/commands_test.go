@@ -54,7 +54,7 @@ func TestPluginMetadata(t *testing.T) {
 		m := c.(map[string]any)
 		names[m["name"].(string)] = true
 	}
-	for _, want := range []string{"setup", "init", "configure", "key", "now", "rollback", "list", "status", "hooks"} {
+	for _, want := range []string{"setup", "init", "configure", "key", "now", "rollback", "list", "status", "hooks", "remove"} {
 		if !names[want] {
 			t.Fatalf("missing command %q in metadata", want)
 		}

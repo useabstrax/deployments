@@ -23,17 +23,18 @@ type Hooks struct {
 
 // Config is the plugin-owned deploy.json schema.
 type Config struct {
-	Version      int      `json:"version"`
-	Project      string   `json:"project"`
-	Repository   string   `json:"repository"`
-	Branch       string   `json:"branch"`
-	Provider     string   `json:"provider"`
-	KeepReleases int      `json:"keep_releases"`
-	PublicDir    string   `json:"public_dir"`
-	Preset       string   `json:"preset"`
-	Shared       []string `json:"shared"`
-	Hooks        Hooks    `json:"hooks"`
-	DeployKey    string   `json:"deploy_key"`
+	Version           int      `json:"version"`
+	Project           string   `json:"project"`
+	Repository        string   `json:"repository"`
+	Branch            string   `json:"branch"`
+	Provider          string   `json:"provider"`
+	KeepReleases      int      `json:"keep_releases"`
+	PublicDir         string   `json:"public_dir"`
+	PreviousPublicDir string   `json:"previous_public_dir,omitempty"`
+	Preset            string   `json:"preset"`
+	Shared            []string `json:"shared"`
+	Hooks             Hooks    `json:"hooks"`
+	DeployKey         string   `json:"deploy_key"`
 }
 
 // Path returns the deploy.json path for a project root.

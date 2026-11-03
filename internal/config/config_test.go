@@ -12,6 +12,7 @@ func TestLoadSaveRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	cfg := config.Default("example.com")
 	cfg.Repository = "git@github.com:acme/app.git"
+	cfg.PreviousPublicDir = "public"
 	cfg.Shared = []string{".env", "storage"}
 	cfg.Hooks.AfterClone = []string{"composer install"}
 
@@ -24,6 +25,9 @@ func TestLoadSaveRoundTrip(t *testing.T) {
 	}
 	if got.Repository != cfg.Repository {
 		t.Fatalf("repository = %q", got.Repository)
+	}
+	if got.PreviousPublicDir != "public" {
+		t.Fatalf("previous_public_dir = %q", got.PreviousPublicDir)
 	}
 	if len(got.Shared) != 2 {
 		t.Fatalf("shared = %#v", got.Shared)

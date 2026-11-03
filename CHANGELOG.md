@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **`deploy remove`** - Tear down per-project deploy state (`deploy.json`, `current`, `releases/`). Restores `previous_public_dir` captured during setup/init (override with `--restore-public-dir`). Optional `--remove-shared` and `--remove-key` for shared data and the local deploy key; GitHub/GitLab key removal stays Console-owned.
+- **`previous_public_dir`** - Stored in `deploy.json` by `setup` / `init` so remove can restore the pre-deploy web root.
 - **`deploy hooks --set` (repeatable)** - Replace a phase with an ordered list of commands in one call (`--set 'cmd1' --set 'cmd2'`).
 - **`deploy hooks --set-json`** - Replace a phase with a JSON array of commands for agents and Console editors. Mutually exclusive with `--set`, `--append`, and `--clear`.
 

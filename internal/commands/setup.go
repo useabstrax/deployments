@@ -133,6 +133,17 @@ func newSetupCmd() *cobra.Command {
 
 			maybeWarnComposerPlugin(p, cfg.Preset)
 
+			if config.Exists(proj.Path) {
+				if existing, err := config.Load(proj.Path); err == nil {
+					cfg.PreviousPublicDir = existing.PreviousPublicDir
+				}
+			}
+			if currentPublic, err := client.ProjectPublicDir(cmd.Context(), proj.Name); err != nil {
+				p.Warn("could not read current public-dir: %v", err)
+			} else {
+				capturePreviousPublicDir(&cfg, currentPublic)
+			}
+
 			if err := config.Save(proj.Path, &cfg); err != nil {
 				return err
 			}

@@ -24,6 +24,8 @@ Each `deploy now` shallow-clones the repo, strips `.git`, links shared paths, ru
 
 ## Install
 
+Requires Abstrax CLI **>= 2.3.0** (`requires_abstrax`).
+
 ```bash
 sudo abstrax plugin install deploy
 abstrax deploy version

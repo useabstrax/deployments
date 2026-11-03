@@ -10,11 +10,15 @@ const (
 	// ProtocolVersion is the supported plugin metadata protocol version.
 	ProtocolVersion = 1
 
-	PluginName      = "deploy"
-	DisplayName     = "Deploy Plugin"
-	Description     = "Zero-downtime GitHub deployments for Abstrax projects"
-	Homepage        = "https://plugins.useabstrax.com/plugins/deploy"
-	RequiresAbstrax = ">=0.1.0"
+	PluginName  = "deploy"
+	DisplayName = "Deploy Plugin"
+	Description = "Zero-downtime GitHub deployments for Abstrax projects"
+	Homepage    = "https://plugins.useabstrax.com/plugins/deploy"
+
+	// RequiresAbstrax starts at 2.3.0, the first CLI release with --action /
+	// --payload dispatch that plugin.deploy.* actions depend on. Also covers
+	// project inspect --json and --json-stream used by this plugin.
+	RequiresAbstrax = ">=2.3.0"
 )
 
 // MetadataCommand describes a subcommand exposed by the plugin.

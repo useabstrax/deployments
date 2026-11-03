@@ -4,6 +4,12 @@ All notable changes to the Abstrax Deploy plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`requires_abstrax`** - Raised from `>=0.1.0` to `>=2.3.0`, matching the CLI floor for `--action` / `--payload` dispatch, `project inspect --json`, and `--json-stream`. Install fails clearly on older Abstrax builds.
+
 ## [0.2.1] - 2026-08-19
 
 ### Fixed

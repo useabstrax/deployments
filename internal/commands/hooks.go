@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,7 +16,8 @@ import (
 
 func newHooksCmd() *cobra.Command {
 	var (
-		setValue    string
+		setValues   []string
+		setJSON     string
 		appendValue string
 		clear       bool
 	)
@@ -31,6 +33,10 @@ Phases:
   after_activate    Run after current is flipped (also re-run on rollback)
 
 Hooks run with bash -lc as the project user (when isolated), cwd = release path.
+
+Replace a phase with one or more commands using repeatable --set, or pass an
+ordered JSON array with --set-json. --set, --set-json, --append, and --clear
+are mutually exclusive.
 `,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -60,13 +66,19 @@ Hooks run with bash -lc as the project user (when isolated), cwd = release path.
 				return err
 			}
 
-			mutating := cmd.Flags().Changed("set") || cmd.Flags().Changed("append") || clear
+			setChanged := cmd.Flags().Changed("set")
+			setJSONChanged := cmd.Flags().Changed("set-json")
+			appendChanged := cmd.Flags().Changed("append")
+			mutating := setChanged || setJSONChanged || appendChanged || clear
 			if mutating {
 				if err := userx.RequireRoot(); err != nil {
 					return err
 				}
 				if phase == "" {
 					return fmt.Errorf("phase is required when modifying hooks")
+				}
+				if err := mutuallyExclusiveHookMutators(setChanged, setJSONChanged, appendChanged, clear); err != nil {
+					return err
 				}
 			}
 
@@ -101,24 +113,23 @@ Hooks run with bash -lc as the project user (when isolated), cwd = release path.
 				return nil
 			}
 
-			if clear {
-				if err := setHooks(cfg, phase, nil); err != nil {
+			var hooks []string
+			switch {
+			case clear:
+				hooks = nil
+			case setJSONChanged:
+				hooks, err = parseSetJSON(setJSON)
+				if err != nil {
 					return err
 				}
-			} else if cmd.Flags().Changed("set") {
-				var hooks []string
-				if strings.TrimSpace(setValue) != "" {
-					hooks = []string{setValue}
-				}
-				if err := setHooks(cfg, phase, hooks); err != nil {
-					return err
-				}
-			} else if cmd.Flags().Changed("append") {
+			case setChanged:
+				hooks = normalizeSetValues(setValues)
+			case appendChanged:
 				existing, _ := release.HooksFor(cfg, phase)
-				existing = append(existing, appendValue)
-				if err := setHooks(cfg, phase, existing); err != nil {
-					return err
-				}
+				hooks = append(append([]string(nil), existing...), appendValue)
+			}
+			if err := setHooks(cfg, phase, hooks); err != nil {
+				return err
 			}
 
 			if globals.DryRun {
@@ -132,19 +143,72 @@ Hooks run with bash -lc as the project user (when isolated), cwd = release path.
 			}
 			_ = userx.ChownPath(config.Path(proj.Path), proj.User)
 
-			hooks, _ := release.HooksFor(cfg, phase)
+			saved, _ := release.HooksFor(cfg, phase)
 			p.Print(output.Success(action, fmt.Sprintf("Updated %s hooks.", phase), map[string]interface{}{
 				"phase": phase,
-				"hooks": hooks,
+				"hooks": saved,
 			}))
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&setValue, "set", "", "Replace hooks for the phase with a single command")
+	cmd.Flags().StringArrayVar(&setValues, "set", nil, "Replace hooks for the phase (repeatable for multiple commands)")
+	cmd.Flags().StringVar(&setJSON, "set-json", "", "Replace hooks for the phase with a JSON array of commands")
 	cmd.Flags().StringVar(&appendValue, "append", "", "Append a hook command to the phase")
 	cmd.Flags().BoolVar(&clear, "clear", false, "Clear all hooks for the phase")
 	return cmd
+}
+
+func mutuallyExclusiveHookMutators(set, setJSON, appendFlag, clear bool) error {
+	n := 0
+	if set {
+		n++
+	}
+	if setJSON {
+		n++
+	}
+	if appendFlag {
+		n++
+	}
+	if clear {
+		n++
+	}
+	if n > 1 {
+		return fmt.Errorf("--set, --set-json, --append, and --clear are mutually exclusive")
+	}
+	return nil
+}
+
+// parseSetJSON decodes a JSON array of strings for --set-json.
+func parseSetJSON(raw string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{}, nil
+	}
+	var hooks []string
+	if err := json.Unmarshal([]byte(raw), &hooks); err != nil {
+		return nil, fmt.Errorf("--set-json must be a JSON array of strings: %w", err)
+	}
+	if hooks == nil {
+		hooks = []string{}
+	}
+	return hooks, nil
+}
+
+// normalizeSetValues turns repeatable --set values into the stored hook list.
+// A single whitespace-only value clears the phase (same as historical --set "").
+func normalizeSetValues(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	if len(values) == 1 && strings.TrimSpace(values[0]) == "" {
+		return []string{}
+	}
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		out = append(out, v)
+	}
+	return out
 }
 
 func printHookList(p *output.Printer, hooks []string) {

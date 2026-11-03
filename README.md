@@ -78,6 +78,21 @@ Globals: `--json`, `--json-stream`, `--yes`, `--dry-run`, `--verbose`, `--quiet`
 
 `--ref` is a branch, `tags/v1.0.0`, or SHA. A bare name such as `v1.2.3` is treated as a branch.
 
+### Hooks
+
+```bash
+# Replace a phase with multiple commands (order preserved)
+sudo abstrax deploy hooks example.com after_clone \
+  --set='composer install --no-dev' \
+  --set='$ABSTRAX_CLI_PHP artisan migrate --force'
+
+# Same via JSON (agents / Console)
+sudo abstrax deploy hooks example.com after_clone \
+  --set-json='["composer install --no-dev","$ABSTRAX_CLI_PHP artisan migrate --force"]'
+```
+
+`--set`, `--set-json`, `--append`, and `--clear` are mutually exclusive.
+
 ## Presets
 
 | Preset | `public_dir` | Shared | Default hooks |

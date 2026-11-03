@@ -2,7 +2,7 @@
   "name": "deploy",
   "version": "0.1.0",
   "protocol_version": 1,
-  "requires_abstrax": ">=0.1.0",
+  "requires_abstrax": ">=2.3.0",
   "channel": "stable",
   "publisher": "useabstrax",
   "trust_level": "official",

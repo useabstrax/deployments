@@ -35,6 +35,12 @@ func TestDefaultMetadataJSON(t *testing.T) {
 	if raw["name"] != plugin.PluginName {
 		t.Errorf("name = %v, want %q", raw["name"], plugin.PluginName)
 	}
+	if raw["requires_abstrax"] != plugin.RequiresAbstrax {
+		t.Errorf("requires_abstrax = %v, want %q", raw["requires_abstrax"], plugin.RequiresAbstrax)
+	}
+	if plugin.RequiresAbstrax != ">=2.3.0" {
+		t.Errorf("RequiresAbstrax const = %q, want >=2.3.0", plugin.RequiresAbstrax)
+	}
 
 	if commands, ok := raw["commands"].([]any); !ok || len(commands) < 9 {
 		t.Errorf("commands = %v, want at least 9 entries", raw["commands"])

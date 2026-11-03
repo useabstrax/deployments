@@ -4,6 +4,13 @@ All notable changes to the Abstrax Deploy plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`deploy hooks --set` (repeatable)** - Replace a phase with an ordered list of commands in one call (`--set 'cmd1' --set 'cmd2'`).
+- **`deploy hooks --set-json`** - Replace a phase with a JSON array of commands for agents and Console editors. Mutually exclusive with `--set`, `--append`, and `--clear`.
+
 ## [0.2.1] - 2026-08-19
 
 ### Fixed

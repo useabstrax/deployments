@@ -205,3 +205,27 @@ func TestHostCommandErrorExitCode(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestProjectPublicDir(t *testing.T) {
+	fake := testutil.InstallFakeAbstrax(t)
+	client, err := abstrax.NewWithBinary(fake)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir, err := client.ProjectPublicDir(context.Background(), "exists")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir != "public" {
+		t.Fatalf("public_dir = %q", dir)
+	}
+
+	dir, err = client.ProjectPublicDir(context.Background(), "deployish")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir != "current/public" {
+		t.Fatalf("public_dir = %q", dir)
+	}
+}

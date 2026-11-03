@@ -4,6 +4,13 @@ All notable changes to the Abstrax Deploy plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`deploy remove`** - Tear down per-project deploy state (`deploy.json`, `current`, `releases/`). Restores `previous_public_dir` captured during setup/init (override with `--restore-public-dir`). Optional `--remove-shared` and `--remove-key` for shared data and the local deploy key; GitHub/GitLab key removal stays Console-owned.
+- **`previous_public_dir`** - Stored in `deploy.json` by `setup` / `init` so remove can restore the pre-deploy web root.
+
 ## [0.2.1] - 2026-08-19
 
 ### Fixed

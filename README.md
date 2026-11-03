@@ -69,8 +69,30 @@ abstrax deploy list example.com
 | `deploy list <project>` | no* | List releases |
 | `deploy status <project>` | no* | Config + current release |
 | `deploy hooks <project> [phase]` | yes (writes) | List/set/append/clear hooks |
+| `deploy remove <project>` | yes | Tear down deploy layout; restore pre-deploy public dir |
 
 \*Read-only when filesystem permissions allow.
+
+### Remove / uninstall
+
+```bash
+# Keep shared/ and the local deploy key; restore previous_public_dir from setup
+sudo abstrax deploy remove example.com --yes
+
+# Also delete shared data and the local key pair
+sudo abstrax deploy remove example.com --yes --remove-shared --remove-key
+
+# Override the restored public directory
+sudo abstrax deploy remove example.com --yes --restore-public-dir=public
+```
+
+| Flag | Description |
+|------|-------------|
+| `--remove-shared` | Also delete `shared/` (`.env`, uploads, etc.) |
+| `--remove-key` | Also delete the local `abstrax_deploy_*` key pair |
+| `--restore-public-dir` | Public dir to restore (defaults to `previous_public_dir` from setup/init) |
+
+Does not remove the deploy key from GitHub/GitLab (Console-owned). `abstrax plugin remove deploy` only removes the plugin binary.
 
 Globals: `--json`, `--json-stream`, `--yes`, `--dry-run`, `--verbose`, `--quiet`, `--no-color`.
 

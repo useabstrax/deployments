@@ -56,6 +56,7 @@ func DefaultMetadata() Metadata {
 			deployCommand("list", "List releases for a project"),
 			deployCommand("status", "Show deploy status and current release"),
 			deployCommand("hooks", "List or edit deploy hooks"),
+			deployCommand("remove", "Remove deploy layout and restore the project"),
 			deployCommand("version", "Display plugin version information"),
 		},
 	}

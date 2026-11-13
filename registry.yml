@@ -1,0 +1,27 @@
+# Listing copy for plugins:discover. Versions come from release manifests.
+
+plugin:
+  name: deploy
+  slug: deploy
+  display_name: Deploy Plugin
+  description: Zero-downtime GitHub deployments for Abstrax projects
+  long_description: |
+    The Deploy Plugin deploys application code into a Capistrano/Deployer-style
+    layout with per-project releases, an atomic current symlink, and shared
+    paths. Each deploy shallow-clones the configured GitHub repository, runs
+    hooks, health-checks the release, activates it, and prunes old releases.
+
+    Commands include setup, init, configure, key, now, rollback, list, status,
+    and hooks. Presets cover Laravel, Node, Ruby, static, and none. Mutating
+    commands require root. Debian/Ubuntu and RHEL-family are supported.
+  trust_level: official
+  status: active
+  featured: true
+  homepage_url: https://plugins.useabstrax.com/plugins/deploy
+  repository_url: https://github.com/useabstrax/deployments
+  documentation_url: https://useabstrax.com/docs/plugins/official/deploy
+  license: Apache-2.0
+
+publisher:
+  name: Abstrax
+  slug: useabstrax

@@ -79,14 +79,17 @@ func TestNormalizeSetValues(t *testing.T) {
 func TestMutuallyExclusiveHookMutators(t *testing.T) {
 	t.Parallel()
 
-	if err := mutuallyExclusiveHookMutators(true, false, false, false); err != nil {
+	if err := mutuallyExclusiveHookMutators(true, false, false, false, false, false); err != nil {
 		t.Fatalf("single mutator: %v", err)
 	}
-	if err := mutuallyExclusiveHookMutators(true, true, false, false); err == nil {
+	if err := mutuallyExclusiveHookMutators(true, true, false, false, false, false); err == nil {
 		t.Fatal("expected error for set+set-json")
 	}
-	if err := mutuallyExclusiveHookMutators(false, false, true, true); err == nil {
+	if err := mutuallyExclusiveHookMutators(false, false, true, true, false, false); err == nil {
 		t.Fatal("expected error for append+clear")
+	}
+	if err := mutuallyExclusiveHookMutators(false, false, false, false, true, true); err == nil {
+		t.Fatal("expected error for script-file+script")
 	}
 }
 

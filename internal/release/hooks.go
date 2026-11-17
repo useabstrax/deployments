@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/config"
@@ -52,7 +53,7 @@ const (
 	PhaseAfterActivate  = "after_activate"
 )
 
-// HooksFor returns the hook list for a phase.
+// HooksFor returns the hook command list for a phase.
 func HooksFor(cfg *config.Config, phase string) ([]string, error) {
 	switch phase {
 	case PhaseAfterClone:
@@ -64,6 +65,24 @@ func HooksFor(cfg *config.Config, phase string) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("unknown hook phase %q", phase)
 	}
+}
+
+// RunPhase executes a phase: multi-line script if set, otherwise the command list.
+// Scripts run with bash -e as the project user (unless they invoke abstrax),
+// cwd = releasePath, with the same environment as command hooks.
+func RunPhase(ctx context.Context, cfg *config.Config, phase, releasePath string, env HookEnv, runAsUser string) error {
+	script, err := cfg.Hooks.ScriptFor(phase)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(script) != "" {
+		return RunScript(ctx, script, releasePath, env, runAsUser)
+	}
+	hooks, err := HooksFor(cfg, phase)
+	if err != nil {
+		return err
+	}
+	return RunHooks(ctx, hooks, releasePath, env, runAsUser)
 }
 
 // RunHooks executes hook commands with bash -lc in releasePath as optional user.
@@ -83,6 +102,55 @@ func RunHooks(ctx context.Context, hooks []string, releasePath string, env HookE
 		if err := runHook(ctx, hook, releasePath, env, user); err != nil {
 			return fmt.Errorf("hook %d (%s): %w", i+1, truncate(hook, 60), err)
 		}
+	}
+	return nil
+}
+
+// RunScript executes a multi-line deploy script with bash -e in releasePath.
+func RunScript(ctx context.Context, script, releasePath string, env HookEnv, runAsUser string) error {
+	script = strings.TrimRight(script, "\n") + "\n"
+	user := runAsUser
+	if hookInvokesAbstrax(script) {
+		user = ""
+	}
+
+	tmp, err := os.CreateTemp(releasePath, ".abstrax-hook-script-*.sh")
+	if err != nil {
+		return fmt.Errorf("creating hook script: %w", err)
+	}
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+	if _, err := tmp.WriteString(script); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("writing hook script: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o700); err != nil {
+		return err
+	}
+
+	var cmd *exec.Cmd
+	if user != "" && user != "root" && os.Geteuid() == 0 {
+		cmd = exec.CommandContext(ctx, "runuser", "-u", user, "--", "bash", "-e", tmpPath)
+	} else {
+		cmd = exec.CommandContext(ctx, "bash", "-e", tmpPath)
+	}
+	cmd.Dir = releasePath
+	cmd.Env = env.Environ()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		out := strings.TrimSpace(stdout.String())
+		errOut := strings.TrimSpace(stderr.String())
+		msg := combineHookOutput(out, errOut)
+		if msg == "" {
+			msg = err.Error()
+		}
+		msg = tailLines(msg, 40)
+		return fmt.Errorf("hook script (%s): %s", filepath.Base(tmpPath), msg)
 	}
 	return nil
 }

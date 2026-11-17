@@ -4,6 +4,13 @@ All notable changes to the Abstrax Deploy plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Hook phase scripts** - Set a multi-line deploy script for a phase with `deploy hooks <project> <phase> --script-file=…` or `--script` (stdin). Scripts run with `bash -e` as the project user in the release directory, with the same `ABSTRAX_*` environment as command hooks. `deploy hooks` / `--json` read the script back exactly; existing single-command and multi-command hooks still work. (#7)
+- **`deploy cancel`** - Stop a stuck or long-running `deploy now`, including hook child processes. Removes the unfinished release and clears `.abstrax-deploy.lock` without touching `current`. Reports release id and step via `--json`; exits 0 when nothing is running. A cancelled `deploy now --json-stream` reports status `cancelled`, not failed. (#8)
+
 ## [0.3.0] - 2026-11-03
 
 ### Added

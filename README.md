@@ -56,6 +56,9 @@ sudo abstrax deploy now example.com --yes
 
 abstrax deploy status example.com
 abstrax deploy list example.com
+
+# If a deploy hangs (hook waiting for input, slow install, etc.)
+sudo abstrax deploy cancel example.com
 ```
 
 ## Commands
@@ -67,6 +70,7 @@ abstrax deploy list example.com
 | `deploy configure <project>` | yes (writes) | Show or update config |
 | `deploy key <project>` | yes (writes) | Create/rotate deploy key; `--show` / `--fingerprint` are read-only |
 | `deploy now <project>` | yes | Full release pipeline |
+| `deploy cancel <project>` | yes | Stop a stuck/long deploy; clean unfinished release + lock |
 | `deploy rollback <project> [id]` | yes | Flip `current`; re-runs `after_activate` |
 | `deploy list <project>` | no* | List releases |
 | `deploy status <project>` | no* | Config + current release |
@@ -111,9 +115,15 @@ sudo abstrax deploy hooks example.com after_clone \
 # Same via JSON (agents / Console)
 sudo abstrax deploy hooks example.com after_clone \
   --set-json='["composer install --no-dev","$ABSTRAX_CLI_PHP artisan migrate --force"]'
+
+# Multi-line script (bash -e; if/variables/comments OK)
+sudo abstrax deploy hooks example.com after_clone --script-file=./deploy-after-clone.sh
+# or: cat deploy-after-clone.sh | sudo abstrax deploy hooks example.com after_clone --script
 ```
 
-`--set`, `--set-json`, `--append`, and `--clear` are mutually exclusive.
+`--set`, `--set-json`, `--append`, `--clear`, `--script-file`, and `--script` are mutually exclusive. Setting a script clears that phase's command list (and vice versa).
+
+Hook/script environment: `ABSTRAX_PROJECT`, `ABSTRAX_PROJECT_PATH`, `ABSTRAX_RELEASE_PATH`, `ABSTRAX_CURRENT_PATH`, `ABSTRAX_SHARED_PATH`, `ABSTRAX_BRANCH`, `ABSTRAX_REF`, `ABSTRAX_RELEASE_ID`, `ABSTRAX_CLI_PHP`.
 
 ## Presets
 

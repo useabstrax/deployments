@@ -40,6 +40,11 @@ func Success(action, summary string, data interface{}) Result {
 	return Result{Status: "success", Action: action, Summary: summary, Data: data}
 }
 
+// Cancelled builds a cancelled result (not a failure).
+func Cancelled(action, summary string, data interface{}) Result {
+	return Result{Status: "cancelled", Action: action, Summary: summary, Data: data}
+}
+
 // Failure builds a failure result.
 func Failure(action, errorCode, message string) Result {
 	return Result{Status: "error", Action: action, ErrorCode: errorCode, Message: message}

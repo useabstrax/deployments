@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -74,8 +75,18 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 	paths := layout.ForProject(opts.ProjectPath)
 	releasePath := paths.ReleasePath(releaseID)
 
+	lastStep := "prepare"
 	step := func(name, msg string) {
+		lastStep = name
 		progress.Progress(opts.Action, name, msg)
+		_ = UpdateLockStep(opts.ProjectPath, name)
+	}
+	cancelResult := func(err error) (*DeployResult, error) {
+		mapped := mapDeployErr(ctx, err)
+		if IsCancelled(mapped) {
+			return &DeployResult{ReleaseID: releaseID, Ref: ref}, fmt.Errorf("%w (release %s, step %s)", ErrCancelled, releaseID, lastStep)
+		}
+		return nil, mapped
 	}
 
 	if cfg.Repository == "" {
@@ -91,12 +102,26 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		return &DeployResult{ReleaseID: releaseID, Ref: ref, Activated: !opts.NoActivate}, nil
 	}
 
+	// Own a process group so deploy cancel can stop hooks and children together.
+	_ = BecomeProcessGroupLeader()
+
 	step("prepare", "Preparing release "+releaseID)
 	if err := layout.EnsureScaffold(opts.ProjectPath); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(releasePath, 0o755); err != nil {
+
+	if _, err := AcquireLock(opts.ProjectPath, releaseID, "prepare"); err != nil {
 		return nil, err
+	}
+	lockHeld := true
+	defer func() {
+		if lockHeld && OwnLockPID(opts.ProjectPath) {
+			_ = ClearLock(opts.ProjectPath)
+		}
+	}()
+
+	if err := os.MkdirAll(releasePath, 0o755); err != nil {
+		return cancelResult(err)
 	}
 
 	cleanup := true
@@ -115,7 +140,7 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		KnownHosts: opts.KnownHosts,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("clone failed: %w", err)
+		return cancelResult(fmt.Errorf("clone failed: %w", err))
 	}
 
 	meta := Meta{
@@ -127,28 +152,28 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		CreatedAt: now,
 	}
 	if err := WriteMeta(releasePath, meta); err != nil {
-		return nil, err
+		return cancelResult(err)
 	}
 	if err := gitx.RemoveGitDir(releasePath); err != nil {
-		return nil, err
+		return cancelResult(err)
 	}
 
 	step("shared", "Linking shared paths")
 	if err := presets.EnsureSharedScaffold(opts.ProjectPath, cfg); err != nil {
-		return nil, err
+		return cancelResult(err)
 	}
 	if err := LinkShared(opts.ProjectPath, releasePath, cfg.Shared); err != nil {
-		return nil, err
+		return cancelResult(err)
 	}
 
 	// Clone/link run as root; hooks run as the project user and must be able to
 	// write into the release (e.g. composer creating vendor/).
 	if opts.Owner != "" {
 		if err := userx.ChownPath(releasePath, opts.Owner); err != nil {
-			return nil, fmt.Errorf("setting release ownership: %w", err)
+			return cancelResult(fmt.Errorf("setting release ownership: %w", err))
 		}
 		if err := userx.ChownPath(paths.Shared, opts.Owner); err != nil {
-			return nil, fmt.Errorf("setting shared ownership: %w", err)
+			return cancelResult(fmt.Errorf("setting shared ownership: %w", err))
 		}
 	}
 
@@ -166,41 +191,43 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 
 	if !opts.SkipHooks {
 		step("hooks_after_clone", "Running after_clone hooks")
-		if err := RunHooks(ctx, cfg.Hooks.AfterClone, releasePath, hookEnv, opts.RunAsUser); err != nil {
-			return nil, err
+		if err := RunPhase(ctx, cfg, PhaseAfterClone, releasePath, hookEnv, opts.RunAsUser); err != nil {
+			return cancelResult(err)
 		}
 		step("hooks_before_activate", "Running before_activate hooks")
-		if err := RunHooks(ctx, cfg.Hooks.BeforeActivate, releasePath, hookEnv, opts.RunAsUser); err != nil {
-			return nil, err
+		if err := RunPhase(ctx, cfg, PhaseBeforeActivate, releasePath, hookEnv, opts.RunAsUser); err != nil {
+			return cancelResult(err)
 		}
 	}
 
 	step("health", "Running health check")
 	if err := HealthCheck(releasePath, cfg.PublicDir); err != nil {
-		return nil, fmt.Errorf("health check failed: %w", err)
+		return cancelResult(fmt.Errorf("health check failed: %w", err))
 	}
 
 	activated := false
 	if !opts.NoActivate {
 		step("activate", "Activating release "+releaseID)
 		if err := Activate(opts.ProjectPath, releaseID); err != nil {
-			return nil, err
+			return cancelResult(err)
 		}
 		activated = true
 
 		if !opts.SkipHooks {
 			step("hooks_after_activate", "Running after_activate hooks")
-			if err := RunHooks(ctx, cfg.Hooks.AfterActivate, releasePath, hookEnv, opts.RunAsUser); err != nil {
-				return nil, err
+			if err := RunPhase(ctx, cfg, PhaseAfterActivate, releasePath, hookEnv, opts.RunAsUser); err != nil {
+				return cancelResult(err)
 			}
 		}
 
 		step("prune", fmt.Sprintf("Pruning old releases (keep %d)", keep))
 		pruned, err := Prune(opts.ProjectPath, keep)
 		if err != nil {
-			return nil, err
+			return cancelResult(err)
 		}
 		cleanup = false
+		lockHeld = false
+		_ = ClearLock(opts.ProjectPath)
 		return &DeployResult{
 			ReleaseID: releaseID,
 			Ref:       ref,
@@ -212,6 +239,8 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 	}
 
 	cleanup = false
+	lockHeld = false
+	_ = ClearLock(opts.ProjectPath)
 	return &DeployResult{
 		ReleaseID: releaseID,
 		Ref:       ref,
@@ -219,6 +248,16 @@ func Deploy(ctx context.Context, opts DeployOptions) (*DeployResult, error) {
 		ShortSHA:  cloneRes.ShortSHA,
 		Activated: activated,
 	}, nil
+}
+
+func mapDeployErr(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%w: %v", ErrCancelled, err)
+	}
+	return err
 }
 
 // RollbackOptions controls rollback.
@@ -299,7 +338,7 @@ func Rollback(ctx context.Context, opts RollbackOptions) (*DeployResult, error) 
 			ReleaseID:   id,
 			CLIPHP:      opts.CLIPHP,
 		}
-		if err := RunHooks(ctx, cfg.Hooks.AfterActivate, releasePath, hookEnv, opts.RunAsUser); err != nil {
+		if err := RunPhase(ctx, cfg, PhaseAfterActivate, releasePath, hookEnv, opts.RunAsUser); err != nil {
 			return nil, err
 		}
 	}

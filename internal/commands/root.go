@@ -58,6 +58,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newConfigureCmd())
 	root.AddCommand(newKeyCmd())
 	root.AddCommand(newNowCmd())
+	root.AddCommand(newCancelCmd())
 	root.AddCommand(newRollbackCmd())
 	root.AddCommand(newListCmd())
 	root.AddCommand(newStatusCmd())

@@ -14,11 +14,16 @@ const (
 	Version  = 1
 )
 
-// Hooks holds shell commands run at deploy phases.
+// Hooks holds shell commands and optional multi-line scripts run at deploy phases.
+// When a phase script is set, it takes precedence over that phase's command list.
 type Hooks struct {
 	AfterClone     []string `json:"after_clone"`
 	BeforeActivate []string `json:"before_activate"`
 	AfterActivate  []string `json:"after_activate"`
+
+	AfterCloneScript     string `json:"after_clone_script,omitempty"`
+	BeforeActivateScript string `json:"before_activate_script,omitempty"`
+	AfterActivateScript  string `json:"after_activate_script,omitempty"`
 }
 
 // Config is the plugin-owned deploy.json schema.
@@ -158,5 +163,36 @@ func (c *Config) Clone() *Config {
 	cp.Hooks.AfterClone = append([]string(nil), c.Hooks.AfterClone...)
 	cp.Hooks.BeforeActivate = append([]string(nil), c.Hooks.BeforeActivate...)
 	cp.Hooks.AfterActivate = append([]string(nil), c.Hooks.AfterActivate...)
+	// Script strings are copied by value with *c.
 	return &cp
+}
+
+// ScriptFor returns the multi-line script for a hook phase, or empty if none.
+func (h Hooks) ScriptFor(phase string) (string, error) {
+	switch phase {
+	case "after_clone":
+		return h.AfterCloneScript, nil
+	case "before_activate":
+		return h.BeforeActivateScript, nil
+	case "after_activate":
+		return h.AfterActivateScript, nil
+	default:
+		return "", fmt.Errorf("unknown hook phase %q", phase)
+	}
+}
+
+// SetScript sets or clears the multi-line script for a hook phase.
+// Passing an empty script clears it. Callers that switch to commands should clear the script.
+func (h *Hooks) SetScript(phase, script string) error {
+	switch phase {
+	case "after_clone":
+		h.AfterCloneScript = script
+	case "before_activate":
+		h.BeforeActivateScript = script
+	case "after_activate":
+		h.AfterActivateScript = script
+	default:
+		return fmt.Errorf("unknown hook phase %q", phase)
+	}
+	return nil
 }

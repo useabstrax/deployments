@@ -2,7 +2,10 @@ package commands
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -73,7 +76,10 @@ func newNowCmd() *cobra.Command {
 				knownHosts = filepath.Join(filepath.Dir(cfg.DeployKey), "known_hosts")
 			}
 
-			result, err := release.Deploy(cmd.Context(), release.DeployOptions{
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			result, err := release.Deploy(ctx, release.DeployOptions{
 				ProjectPath: proj.Path,
 				Config:      cfg,
 				Ref:         ref,
@@ -88,6 +94,18 @@ func newNowCmd() *cobra.Command {
 				Progress:    p,
 				Action:      action,
 			})
+			if release.IsCancelled(err) {
+				data := map[string]interface{}{}
+				if result != nil {
+					data["release_id"] = result.ReleaseID
+				}
+				summary := "Deploy cancelled."
+				if result != nil && result.ReleaseID != "" {
+					summary = fmt.Sprintf("Deploy of release %s cancelled.", result.ReleaseID)
+				}
+				p.Print(output.Cancelled(action, summary, data))
+				return nil
+			}
 			if err != nil {
 				return err
 			}

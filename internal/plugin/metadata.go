@@ -56,6 +56,7 @@ func DefaultMetadata() Metadata {
 			deployCommand("configure", "Show or update deploy configuration"),
 			deployCommand("key", "Create or manage the project deploy key"),
 			deployCommand("now", "Deploy a new release with zero downtime"),
+			deployCommand("cancel", "Cancel a stuck or long-running deploy"),
 			deployCommand("rollback", "Point current at a previous release"),
 			deployCommand("list", "List releases for a project"),
 			deployCommand("status", "Show deploy status and current release"),

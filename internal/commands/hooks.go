@@ -3,6 +3,8 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -20,6 +22,8 @@ func newHooksCmd() *cobra.Command {
 		setJSON     string
 		appendValue string
 		clear       bool
+		scriptFile  string
+		scriptStdin bool
 	)
 
 	cmd := &cobra.Command{
@@ -32,11 +36,19 @@ Phases:
   before_activate   Run after after_clone, before health check / activate
   after_activate    Run after current is flipped (also re-run on rollback)
 
-Hooks run with bash -lc as the project user (when isolated), cwd = release path.
+Command hooks run with bash -lc as the project user (when isolated), cwd = release path.
+A phase may instead hold a multi-line script (--script-file / --script) which runs with
+bash -e under the same user, cwd, and environment.
+
+Environment available to hooks and scripts:
+  ABSTRAX_PROJECT, ABSTRAX_PROJECT_PATH, ABSTRAX_RELEASE_PATH, ABSTRAX_CURRENT_PATH,
+  ABSTRAX_SHARED_PATH, ABSTRAX_BRANCH, ABSTRAX_REF, ABSTRAX_RELEASE_ID, ABSTRAX_CLI_PHP
 
 Replace a phase with one or more commands using repeatable --set, or pass an
-ordered JSON array with --set-json. --set, --set-json, --append, and --clear
-are mutually exclusive.
+ordered JSON array with --set-json. Use --script-file or --script (stdin) for a
+multi-line script. Setting commands clears any script for that phase, and setting
+a script clears the command list. --set, --set-json, --append, --clear,
+--script-file, and --script are mutually exclusive.
 `,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -69,7 +81,8 @@ are mutually exclusive.
 			setChanged := cmd.Flags().Changed("set")
 			setJSONChanged := cmd.Flags().Changed("set-json")
 			appendChanged := cmd.Flags().Changed("append")
-			mutating := setChanged || setJSONChanged || appendChanged || clear
+			scriptFileChanged := cmd.Flags().Changed("script-file")
+			mutating := setChanged || setJSONChanged || appendChanged || clear || scriptFileChanged || scriptStdin
 			if mutating {
 				if err := userx.RequireRoot(); err != nil {
 					return err
@@ -77,7 +90,7 @@ are mutually exclusive.
 				if phase == "" {
 					return fmt.Errorf("phase is required when modifying hooks")
 				}
-				if err := mutuallyExclusiveHookMutators(setChanged, setJSONChanged, appendChanged, clear); err != nil {
+				if err := mutuallyExclusiveHookMutators(setChanged, setJSONChanged, appendChanged, clear, scriptFileChanged, scriptStdin); err != nil {
 					return err
 				}
 			}
@@ -93,48 +106,73 @@ are mutually exclusive.
 					if phase == "" {
 						p.Print(output.Success(action, "", cfg.Hooks))
 					} else {
-						hooks, _ := release.HooksFor(cfg, phase)
-						p.Print(output.Success(action, "", map[string]interface{}{"phase": phase, "hooks": hooks}))
+						p.Print(output.Success(action, "", phaseView(cfg, phase)))
 					}
 					return nil
 				}
 				if phase == "" {
-					p.Line("after_clone:")
-					printHookList(p, cfg.Hooks.AfterClone)
-					p.Line("before_activate:")
-					printHookList(p, cfg.Hooks.BeforeActivate)
-					p.Line("after_activate:")
-					printHookList(p, cfg.Hooks.AfterActivate)
+					printPhaseHuman(p, "after_clone", cfg.Hooks.AfterClone, cfg.Hooks.AfterCloneScript)
+					printPhaseHuman(p, "before_activate", cfg.Hooks.BeforeActivate, cfg.Hooks.BeforeActivateScript)
+					printPhaseHuman(p, "after_activate", cfg.Hooks.AfterActivate, cfg.Hooks.AfterActivateScript)
 					return nil
 				}
 				hooks, _ := release.HooksFor(cfg, phase)
-				p.Line("%s:", phase)
-				printHookList(p, hooks)
+				script, _ := cfg.Hooks.ScriptFor(phase)
+				printPhaseHuman(p, phase, hooks, script)
 				return nil
 			}
 
-			var hooks []string
 			switch {
 			case clear:
-				hooks = nil
-			case setJSONChanged:
-				hooks, err = parseSetJSON(setJSON)
+				if err := setHooks(cfg, phase, nil); err != nil {
+					return err
+				}
+				if err := cfg.Hooks.SetScript(phase, ""); err != nil {
+					return err
+				}
+			case scriptFileChanged || scriptStdin:
+				script, err := readHookScript(scriptStdin, scriptFile)
 				if err != nil {
 					return err
 				}
+				if err := setHooks(cfg, phase, nil); err != nil {
+					return err
+				}
+				if err := cfg.Hooks.SetScript(phase, script); err != nil {
+					return err
+				}
+			case setJSONChanged:
+				hooks, err := parseSetJSON(setJSON)
+				if err != nil {
+					return err
+				}
+				if err := cfg.Hooks.SetScript(phase, ""); err != nil {
+					return err
+				}
+				if err := setHooks(cfg, phase, hooks); err != nil {
+					return err
+				}
 			case setChanged:
-				hooks = normalizeSetValues(setValues)
+				if err := cfg.Hooks.SetScript(phase, ""); err != nil {
+					return err
+				}
+				if err := setHooks(cfg, phase, normalizeSetValues(setValues)); err != nil {
+					return err
+				}
 			case appendChanged:
+				if script, _ := cfg.Hooks.ScriptFor(phase); strings.TrimSpace(script) != "" {
+					return fmt.Errorf("cannot --append to a phase that has a script; clear or replace the script first")
+				}
 				existing, _ := release.HooksFor(cfg, phase)
-				hooks = append(append([]string(nil), existing...), appendValue)
-			}
-			if err := setHooks(cfg, phase, hooks); err != nil {
-				return err
+				hooks := append(append([]string(nil), existing...), appendValue)
+				if err := setHooks(cfg, phase, hooks); err != nil {
+					return err
+				}
 			}
 
 			if globals.DryRun {
 				p.DryRun("would update %s hooks", phase)
-				p.Print(output.Success(action, "Dry run complete.", cfg.Hooks))
+				p.Print(output.Success(action, "Dry run complete.", phaseView(cfg, phase)))
 				return nil
 			}
 
@@ -143,11 +181,7 @@ are mutually exclusive.
 			}
 			_ = userx.ChownPath(config.Path(proj.Path), proj.User)
 
-			saved, _ := release.HooksFor(cfg, phase)
-			p.Print(output.Success(action, fmt.Sprintf("Updated %s hooks.", phase), map[string]interface{}{
-				"phase": phase,
-				"hooks": saved,
-			}))
+			p.Print(output.Success(action, fmt.Sprintf("Updated %s hooks.", phase), phaseView(cfg, phase)))
 			return nil
 		},
 	}
@@ -155,11 +189,13 @@ are mutually exclusive.
 	cmd.Flags().StringArrayVar(&setValues, "set", nil, "Replace hooks for the phase (repeatable for multiple commands)")
 	cmd.Flags().StringVar(&setJSON, "set-json", "", "Replace hooks for the phase with a JSON array of commands")
 	cmd.Flags().StringVar(&appendValue, "append", "", "Append a hook command to the phase")
-	cmd.Flags().BoolVar(&clear, "clear", false, "Clear all hooks for the phase")
+	cmd.Flags().BoolVar(&clear, "clear", false, "Clear all hooks and any script for the phase")
+	cmd.Flags().StringVar(&scriptFile, "script-file", "", "Replace the phase with a multi-line script from a file")
+	cmd.Flags().BoolVar(&scriptStdin, "script", false, "Replace the phase with a multi-line script read from stdin")
 	return cmd
 }
 
-func mutuallyExclusiveHookMutators(set, setJSON, appendFlag, clear bool) error {
+func mutuallyExclusiveHookMutators(set, setJSON, appendFlag, clear, scriptFile, scriptStdin bool) error {
 	n := 0
 	if set {
 		n++
@@ -173,10 +209,37 @@ func mutuallyExclusiveHookMutators(set, setJSON, appendFlag, clear bool) error {
 	if clear {
 		n++
 	}
+	if scriptFile {
+		n++
+	}
+	if scriptStdin {
+		n++
+	}
 	if n > 1 {
-		return fmt.Errorf("--set, --set-json, --append, and --clear are mutually exclusive")
+		return fmt.Errorf("--set, --set-json, --append, --clear, --script-file, and --script are mutually exclusive")
 	}
 	return nil
+}
+
+func readHookScript(fromStdin bool, filePath string) (string, error) {
+	if fromStdin {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("reading script from stdin: %w", err)
+		}
+		if len(data) == 0 {
+			return "", fmt.Errorf("--script requires a non-empty script on stdin")
+		}
+		return string(data), nil
+	}
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("reading --script-file: %w", err)
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("--script-file is empty")
+	}
+	return string(data), nil
 }
 
 // parseSetJSON decodes a JSON array of strings for --set-json.
@@ -211,6 +274,18 @@ func normalizeSetValues(values []string) []string {
 	return out
 }
 
+func printPhaseHuman(p *output.Printer, phase string, hooks []string, script string) {
+	p.Line("%s:", phase)
+	if strings.TrimSpace(script) != "" {
+		p.Line("  (script)")
+		for _, line := range strings.Split(strings.TrimRight(script, "\n"), "\n") {
+			p.Line("  %s", line)
+		}
+		return
+	}
+	printHookList(p, hooks)
+}
+
 func printHookList(p *output.Printer, hooks []string) {
 	if len(hooks) == 0 {
 		p.Line("  (none)")
@@ -219,6 +294,19 @@ func printHookList(p *output.Printer, hooks []string) {
 	for i, h := range hooks {
 		p.Line("  %d. %s", i+1, h)
 	}
+}
+
+func phaseView(cfg *config.Config, phase string) map[string]interface{} {
+	hooks, _ := release.HooksFor(cfg, phase)
+	script, _ := cfg.Hooks.ScriptFor(phase)
+	out := map[string]interface{}{
+		"phase": phase,
+		"hooks": hooks,
+	}
+	if strings.TrimSpace(script) != "" {
+		out["script"] = script
+	}
+	return out
 }
 
 func setHooks(cfg *config.Config, phase string, hooks []string) error {

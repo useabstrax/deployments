@@ -12,6 +12,7 @@ import (
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/key"
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/layout"
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/output"
+	"github.com/useabstrax/abstrax/plugins/deploy/internal/release"
 	"github.com/useabstrax/abstrax/plugins/deploy/internal/userx"
 	"github.com/useabstrax/abstrax/plugins/deploy/sdk/abstrax"
 )
@@ -166,6 +167,7 @@ func removeDeployArtifacts(projectPath, keyPath string, removeShared, removeKey 
 		paths.Current,
 		filepath.Join(projectPath, "current.tmp"),
 		paths.Releases,
+		release.LockPath(projectPath),
 		config.Path(projectPath),
 	} {
 		existed := pathExists(path)
